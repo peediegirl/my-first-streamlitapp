@@ -8,113 +8,118 @@ from urllib.request import urlopen
 import json
 from copy import deepcopy
 
-
-# First some MPG Data Exploration
-@st.cache_data
+# First some Data Exploration
+st.cache_data
 def load_data(path):
     df = pd.read_csv(path)
     return df
 
+volcano_df_raw = load_data(path="./data/volcano_ds_pop.csv")
+volcano_df = deepcopy(volcano_df_raw)
 
-mpg_df_raw = load_data(path="./data/mpg.csv")
-mpg_df = deepcopy(mpg_df_raw)
+volcano_df['Country'] = volcano_df['Country'].replace({'United States':'United States of America',
+                                                                      'Tanzania':'United Republic of Tanzania',
+                                                                      'Martinique':'Martinique',
+                                                                      'Sao Tome & Principe':'Sao Tome and Principe',
+                                                                      'Guadeloupe':'Guadeloupe',
+                                                                      'Wallis & Futuna':'Wallis and Futuna'})
+
 
 # Add title and header
 st.title("Introduction to Streamlit")
-st.header("MPG Data Exploration")
+st.header("Volcanoes Data Exploration")
 
 # Widgets: checkbox (you can replace st.xx with st.sidebar.xx)
 if st.checkbox("Show Dataframe"):
     st.subheader("This is my dataset:")
-    st.dataframe(data=mpg_df)
-    # st.table(data=mpg_df)
+    st.dataframe(data=volcano_df)
 
 # Setting up columns
 left_column, middle_column, right_column = st.columns([3, 1, 1])
 
-# Widgets: selectbox
-years = ["All"]+sorted(pd.unique(mpg_df['year']))
-year = left_column.selectbox("Choose a Year", years)
-
-# Widgets: radio buttons
-show_means = middle_column.radio(
-    label='Show Class Means', options=['Yes', 'No'])
-
-plot_types = ["Matplotlib", "Plotly"]
-plot_type = right_column.radio("Choose Plot Type", plot_types)
+# Widgets countries: selectbox
+countries = ["All"]+sorted(pd.unique(volcano_df['Country']))
+country = left_column.selectbox("Choose a Country", countries)
 
 # Flow control and plotting
-if year == "All":
-    reduced_df = mpg_df
+if country == "All":
+    reduced_df = volcano_df
 else:
-    reduced_df = mpg_df[mpg_df["year"] == year]
+    reduced_df = volcano_df[volcano_df["Country"] == country]
 
-means = reduced_df.groupby('class').mean(numeric_only=True)
 
-# In Matplotlib
-m_fig, ax = plt.subplots(figsize=(10, 8))
-ax.scatter(reduced_df['displ'], reduced_df['hwy'], alpha=0.7)
+# Widgets types: selectbox
+types = ["All"]+sorted(pd.unique(reduced_df['Type']))
+type = left_column.selectbox("Choose a Type", types)
 
-if show_means == "Yes":
-    ax.scatter(means['displ'], means['hwy'], alpha=0.7, color="red")
+#if country != "All":
+ #   types = sorted(pd.unique(volcano_df[['Country']== country]["Type"]))
 
-ax.set_title("Engine Size vs. Highway Fuel Mileage")
-ax.set_xlabel('Displacement (Liters)')
-ax.set_ylabel('MPG')
 
-# In Plotly
-p_fig = px.scatter(reduced_df, x='displ', y='hwy', opacity=0.5,
-                   range_x=[1, 8], range_y=[10, 50],
-                   width=750, height=600,
-                   labels={"displ": "Displacement (Liters)",
-                           "hwy": "MPG"},
-                   title="Engine Size vs. Highway Fuel Mileage")
-p_fig.update_layout(title_font_size=22)
+# Flow control and plotting
+#if country == "All" and type =='All':
+  #  reduced_df = volcano_df
+#elif country == "All" and type !='All':
+  #  reduced_df = volcano_df[volcano_df["Type"] == type]
+#elif country != "All" and type =='All':
+  #  reduced_df = volcano_df[volcano_df["Country"] == country]
+#else:
+ #   reduced_df = volcano_df[([volcano_df["Country"] == country])&([volcano_df["Type"] == type])]
 
-if show_means == "Yes":
-    p_fig.add_trace(go.Scatter(x=means['displ'], y=means['hwy'],
-                               mode="markers"))
-    p_fig.update_layout(showlegend=False)
 
-# Select which plot to show
-if plot_type == "Matplotlib":
-    st.pyplot(m_fig)
-else:
-    st.plotly_chart(p_fig)
 
-# We can write stuff
-url = "https://archive.ics.uci.edu/ml/datasets/auto+mpg"
-st.write("Data Source:", url)
-# "This works too:", url
+
+# Flow control and plotting
+#if type == "All":
+#   reduced_df = volcano_df
+#else:
+#    reduced_df = volcano_df[volcano_df["Type"] == type]
+
 
 # Another header
 st.header("Maps")
 
-# Sample Streamlit Map
-st.subheader("Streamlit Map")
-ds_geo = px.data.carshare()
-ds_geo['lat'] = ds_geo['centroid_lat']
-ds_geo['lon'] = ds_geo['centroid_lon']
-st.map(ds_geo)
+fig = px.scatter_mapbox(reduced_df,
+                        lat='Latitude',
+                        lon='Longitude',
+                        color='Type',
+                        hover_name='Volcano Name',
+                        hover_data=['Type', 'Country', 'Region', 'Status'],
+                        zoom=1.5,
+                        title="<b>'Volcanoes of the World'</b>",
+                        color_discrete_sequence=px.colors.qualitative.Plotly)
 
-# Sample Choropleth mapbox using Plotly GO
-st.subheader("Plotly Map")
+fig.update_layout(
+                    title={"font_size":20,
+                        "xanchor":"center", "x":0.38,
+                        "yanchor":"bottom", "y":0.95},
+                    title_font=dict(size=24, color='Black', family='Arial, sans-serif'),
+                    height=1100,
+                    width=1300,
+                    autosize=True,
+                    hovermode='closest',
+                    mapbox=dict(
+                        style='open-street-map'
+                    ),
+                    legend_title_text='Volcano Type'
+)
 
-with urlopen('https://raw.githubusercontent.com/plotly/datasets/master/geojson-counties-fips.json') as response:
-    counties = json.load(response)
-df = pd.read_csv("https://raw.githubusercontent.com/plotly/datasets/master/fips-unemp-16.csv",
-                 dtype={"fips": str})
+st.plotly_chart(fig)
 
-plotly_map = go.Figure(go.Choroplethmapbox(geojson=counties,
-                                           locations=df.fips,
-                                           z=df.unemp,
-                                           colorscale="Viridis",
-                                           zmin=0, zmax=12,
-                                           marker={"opacity": 0.5, "line_width": 0}))
-plotly_map.update_layout(mapbox_style="carto-positron",
-                         mapbox_zoom=3,
-                         mapbox_center={"lat": 37.0902, "lon": -95.7129},
-                         margin={"r": 0, "t": 0, "l": 0, "b": 0})
 
-st.plotly_chart(plotly_map)
+# Another header
+st.header("Elevation")
 
+
+# Flow control and plotting
+#if country == "All":
+   # reduced_country_df = volcano_df
+#else:
+   # reduced_country_df = volcano_df[volcano_df["Country"] == country]
+
+#fig2 = px.scatter(reduced_country_df, x="Volcano Name", y="Elev", color="Country")
+fig2 = px.scatter(reduced_df, x="Volcano Name", y="Elev", color="Country")
+fig2.update_layout( height=800,
+                    width=800,
+                    autosize=True)
+st.plotly_chart(fig2)
